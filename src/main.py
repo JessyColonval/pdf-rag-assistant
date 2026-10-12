@@ -97,10 +97,10 @@ if __name__ == "__main__":
     ans = ask(load_index(OUT_INDEX), args.question, args.answer_model)
 
     if args.show_passages:
-        print("\n=== Excerpts sent to the LLM ===")
+        print("\n=== \"Passages\" sent to the LLM ===")
         for n, p in enumerate(ans["passages"], 1):
             print(f"[{n}] {' > '.join(p['path'])} (p.{p['page']}) : {p['text'][:100]!r}")
-        print("================================\n")
+        print("====================================\n")
 
     print(f"=== LLM's Response ===\n{ans['text']:}\n======================\n")
     if ans["truncated"]:
