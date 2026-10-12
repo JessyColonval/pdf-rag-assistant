@@ -10,7 +10,6 @@ MAX_CHARS = 1500
 MIN_CHARS = 400
 EMBED_MODEL = "intfloat/multilingual-e5-small"
 SKIP_HEADINGS = re.compile(r"^\W*(sommaire|table des mati[èe]res)\W*$", re.I)
-META_LINE = re.compile(r"^(Espace|Section|Type)\s*:\s*(.*)$")
 _MODEL = None
 
 
