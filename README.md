@@ -3,6 +3,81 @@
 A Retrieval-Augmented Generation (RAG) assistant that answers questions about application documentation delivered
 as PDF files, including the information that only appears in screenshots, diagrams and charts.
 
+## Usage
+
+### Prerequisites
+
+- Python 3.10+
+- An [OpenRouter](https://openrouter.ai) API key in a `.env` file:
+```
+OPENROUTER_API_KEY=...
+```
+- Dependencies:
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+The first run downloads the models used locally (Docling's layout models and the embedding model), so it needs an
+internet connection and can take a while.
+
+## Quick start
+
+```bash
+python main.py \
+  --pdfs <folder path> \
+  --out_data <folder path> \
+  --out_idx <folder path> \
+  --vision_model <vision-model-id> \
+  --answer_model <answer-model-id> \
+  --question "How do I translate test steps into keywords?"
+```
+
+A single run reads the PDFs, extracts their content, describes the figures with the vision model, builds the search
+index and answers the question with the answer model. The answer is printed with the sources it cites (document,
+page and figure images) and the number of tokens consumed.
+
+| Argument | Required | Description |
+|---|---|---|
+| `--pdfs` | yes | Path to the PDF files to extract data from. |
+| `--out_data` | yes | Output path where the extracted PDF data is saved (one JSON file per PDF, plus the figure images). |
+| `--out_idx` | yes | Output path where the information index is stored (passages and embeddings). |
+| `--vision_model` | yes | OpenRouter ID of a model that supports image input. Used to describe the figures. |
+| `--answer_model` | yes | OpenRouter ID of the model that answers the question. |
+| `--question` | yes | The question to ask. |
+| `--force` | no | Re-describe even the figures that have already been described. |
+| `--show_passages` | no | Print the passages that were sent to the answer model, before the answer. |
+| `--limit N` | no | Maximum number of API calls for the figure descriptions. |
+
+Model IDs are OpenRouter IDs in the form `provider/model-name`. The vision model and the answer model can be
+different: the vision model is only used to describe figures, the answer model only sees text.
+
+
+### What gets written
+
+```
+<out_data>/
+  <pdf name>.json            ordered blocks of each PDF, with figure descriptions
+  images/<pdf name>/*.png    one image per figure
+  cache/descriptions.json    cache of the vision model's replies
+<out_idx>/
+  passages.jsonl             one searchable passage per line
+  embeddings.npy             one embedding per passage
+```
+
+### Usage example
+```bash
+python -m src.main \
+  --pdfs ./data/pdfs/ \
+  --vision_model openai/gpt-4.1-mini \
+  --answer_model openai/gpt-6-luna \
+  --out_data ./data/extraction \
+  --out_idx ./data/indexing \
+  --question "Qu'est-ce qu'une donnée de conception ?" \
+  --show_passages
+```
+
+
 ## Reading the PDFs
 
 PDFs are parsed with [Docling](https://github.com/docling-project/docling), which analyses the page layout and
@@ -32,14 +107,18 @@ Blocks are grouped into **passages**, the units that search returns:
 
 Retrieval is hybrid, combining two complementary methods:
 
-- **BM25** (`rank-bm25`) matches exact words such as button names or error codes;
+- **BM25** (`rank-bm25`) matches exact words such as button names or error codes[^bm25];
 - **dense embeddings** (`sentence-transformers`, local multilingual model `intfloat/multilingual-e5-small`) match
   meaning, so a reworded question still finds the right passage. Vectors are L2-normalised, so a dot product gives
   the cosine similarity.
 
 Each method returns its 20 best passages. The two rankings are merged with Reciprocal Rank Fusion, which scores a
-passage `1 / (60 + rank)` in each list and sums the scores, so a passage ranked well by both methods comes first.
+passage `1 / (60 + rank)` in each list and sums the scores, so a passage ranked well by both methods comes first[^rrf].
 The top 6 are kept.
+
+[^bm25]: A. Trotman, A. Puurula and B. Burgess, "Improvements to BM25 and language models examined", *Proceedings of the 19th Australasian Document Computing Symposium*, 2014, pp.58-65. DOI: [10.1145/2682862.2682863](https://doi.org/10.1145/2682862.2682863).
+[^rrf]: G. V. Cormack, C. L. A. Clarke and S. Büttcher, "Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods", *Proc. 32nd ACM SIGIR Conf. (SIGIR '09)*, 2009, pp. 758–759. DOI: [10.1145/1571941.1572114](https://doi.org/10.1145/1571941.1572114)
+
 
 ## Answer generation
 
