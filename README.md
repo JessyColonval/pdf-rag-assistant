@@ -7,7 +7,7 @@ as PDF files, including the information that only appears in screenshots, diagra
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.12+
 - An [OpenRouter](https://openrouter.ai) API key in a `.env` file:
 ```
 OPENROUTER_API_KEY=...
