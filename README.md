@@ -44,7 +44,7 @@ page and figure images) and the number of tokens consumed.
 | `--out_idx` | yes | Output path where the information index is stored (passages and embeddings). |
 | `--vision_model` | yes | OpenRouter ID of a model that supports image input. Used to describe the figures. |
 | `--answer_model` | yes | OpenRouter ID of the model that answers the question. |
-| `--question` | yes | The question to ask. |
+| `--question` | no | The question to ask. If the question is missing, the terminal will prompt you to enter it. |
 | `--force` | no | Re-describe even the figures that have already been described. |
 | `--show_passages` | no | Print the passages that were sent to the answer model, before the answer. |
 | `--limit N` | no | Maximum number of API calls for the figure descriptions. |

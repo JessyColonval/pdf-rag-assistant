@@ -1,15 +1,23 @@
-from typing import List
+from typing import List, Dict
 
 import json
 import argparse
 from pathlib import Path
 
-from src.llm_usage import make_client, new_total, format_total, format_usage
+from rich.markdown import Markdown
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.panel import Panel
+from rich.text import Text
+
+from src.llm_usage import make_client, new_total, format_total
 from src.extraction import make_converter, extract
 from src.describe import process_dir
 from src.indexing import build_index
 from src.qa import load_index, ask, cited_passages
 
+
+console = Console()
 
 def format_json_name(out_dir: Path, pdf_name: str) -> Path:
     return out_dir / f"{pdf_name:}.json"
@@ -20,6 +28,62 @@ def unextracted_files(files: List[str], out_dir: Path) -> List[str]:
         for file in files
         if not format_json_name(out_dir, file.stem).exists()
     ]
+
+def display_passages(passages: List[Dict[str, int|int|List[str]]]) -> None:
+    content = Text()
+
+    for i_psg, psg in enumerate(passages, start=1):
+        source = psg.get("doc_id", "Inconnu")
+        page = psg.get("page", "?")
+        path = psg.get("path", ["Sans titre"])
+        title = " > ".join(path[1:])
+        excerpt = psg.get("text", "")
+
+        content.append(f"[{i_psg:d}] ", style="bold cyan")
+        content.append(f"{source:}", style="bold")
+        content.append(f" · p.{page:}\n", style="dim")
+        content.append(f"    {title:}\n", style="bold")
+        content.append(f"    {excerpt[:100]}...\n", style="dim")
+
+    console.print(
+        Panel(
+            content,
+            title="[bold cyan]\"Passages\" collected[/bold cyan]",
+            subtitle=f"{len(passages)} passages",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+    )
+
+
+def display_response(response: str) -> None:
+    console.print(
+        Panel(
+            Markdown(response),
+            title="[bold green]LLM assistant[/bold green]",
+            border_style="green",
+            padding=(1, 2),
+        )
+    )
+
+
+def display_metrics(input_tokens: int, output_tokens: int) -> None:
+    total = input_tokens + output_tokens
+    console.print(
+        f"\n[dim]Tokens : {total:,} "
+        f"(input: {input_tokens:,} · output: {output_tokens:,})[/dim]"
+    )
+
+
+def pretty_print(answer: Dict[str, str], show_passages: bool) -> None:
+    if show_passages:
+        display_passages(answer["passages"])
+
+    display_response(answer["text"])
+    if answer["truncated"]:
+        print("\nTruncated response (length limit reached).")
+
+    display_metrics(answer["usage"]["prompt"], answer["usage"]["completion"])
 
 
 if __name__ == "__main__":
@@ -46,7 +110,7 @@ if __name__ == "__main__":
         help="OpenRouter ID of a model that will answer the question."
     )
     ap.add_argument(
-        "--question", type=str, required=True,
+        "--question", type=str,
         help="The question you would like to ask the LLM."
     )
     ap.add_argument(
@@ -92,32 +156,35 @@ if __name__ == "__main__":
 
     #
     build_index(OUT_EXTRAC, OUT_INDEX)
+    index = load_index(OUT_INDEX)
 
-    #
-    ans = ask(load_index(OUT_INDEX), args.question, args.answer_model)
+    if args.question is not None:
+        ans = ask(index, args.question, args.answer_model)
+        pretty_print(ans, args.show_passages)
 
-    if args.show_passages:
-        print("\n=== \"Passages\" sent to the LLM ===")
-        for n, p in enumerate(ans["passages"], 1):
-            print(f"[{n}] {' > '.join(p['path'])} (p.{p['page']}) : {p['text'][:100]!r}")
-        print("====================================\n")
+    else:
+        while True:
+            try:
+                console.print(
+                    Panel(
+                        "[dim]Ask a question about the content of your documents.\n"
+                        "Write [bold]exit[/bold] or [bold]quit[/bold] to quit.[/dim]",
+                        title="[bold white]RAG Assistant[/bold white]",
+                        border_style="white",
+                        padding=(0, 2),
+                    )
+                )
+                your_question = Prompt.ask("[bold cyan]You[/bold cyan] ❯")
 
-    print(f"=== LLM's Response ===\n{ans['text']:}\n======================\n")
-    if ans["truncated"]:
-        print("\nTruncated response (length limit reached).")
+                if your_question.lower() in ("exit", "quit"):
+                    break
 
-    #
-    print("\n=== Sources cited ===")
-    for p in cited_passages(ans):
-        imgs = [
-            f["image_path"]
-            for f in p["figures"]
-            if f.get("image_path")
-        ]
-        imgs_msg = ""
-        if len(imgs) > 0:
-            imgs_msg = f"  images: {imgs:}"
-        print(f"- {p['doc_id']}, p.{p['page']}, {' > '.join(p['path'])}{imgs_msg:}")
-    print("=====================")
+                if your_question is None:
+                    continue
 
-    print(f"\nTokens: {format_usage(ans['usage'])}")
+                ans = ask(index, your_question, args.answer_model)
+                pretty_print(ans, args.show_passages)
+
+            except (KeyboardInterrupt, EOFError):
+                print("\nEnd of the session")
+                break
