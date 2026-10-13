@@ -3,6 +3,8 @@
 A Retrieval-Augmented Generation (RAG) assistant that answers questions about application documentation delivered
 as PDF files, including the information that only appears in screenshots, diagrams and charts.
 
+![Pipeline](docs/images/architecture.png)
+
 ## Usage
 
 ### Prerequisites
