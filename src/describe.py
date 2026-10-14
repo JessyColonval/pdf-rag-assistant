@@ -86,7 +86,7 @@ def process_dir(
     cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
     calls = 0
 
-    prompt = load_prompt(DEFAULT_prompt_PATH)
+    template = load_prompt(DEFAULT_prompt_PATH)
 
     # Iterate through all JSON files in the 'out_dir' folder
     for json_path in sorted(out_dir.glob("*.json")):
@@ -117,7 +117,7 @@ def process_dir(
                 continue
 
             # Build the prompt that will be sent to the LLM.
-            prompt = prompt.format(
+            prompt = template.format(
                 context=context_before(blocks, i),
                 caption=b.get("caption", "aucune")
             )
